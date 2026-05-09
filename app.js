@@ -1,61 +1,84 @@
 /**
- * app.js — Bar Exam Quiz Game Logic
- *
- * Depends on:
- *   questions.js  → global QUESTIONS array
- *   style.css     → visual classes applied here
- *   index.html    → element IDs referenced here
+ * app.js — Order in the Court
+ * Game logic: filters, shuffle, timer, answers, feedback, results, dark mode
  */
 
-/* ═══════════════════════════════════════════
+/* ═══════════════════════════
    STATE
-═══════════════════════════════════════════ */
+═══════════════════════════ */
 const state = {
-  pool:          [],   // questions for this session
-  index:         0,    // current question index
-  correct:       0,
-  wrong:         0,
-  wrongItems:    [],   // { question, correctText } for review
-  timerEnabled:  true,
-  timerInterval: null,
-  timeLeft:      0,
-  answered:      false,
-  retryMode:     false,
-
-  // User filter selections
-  filterTopic:      "all",
-  filterDifficulty: "all",
+  pool:           [],
+  index:          0,
+  correct:        0,
+  wrong:          0,
+  wrongItems:     [],
+  timerEnabled:   true,
+  timerInterval:  null,
+  timeLeft:       0,
+  answered:       false,
+  filterTopic:    "all",
+  filterDiff:     "all",
 };
 
-/* ═══════════════════════════════════════════
-   TIMER DURATIONS
-═══════════════════════════════════════════ */
-const TIMER_SECONDS = { easy: 80, medium: 55, hard: 30 };
-const RING_CIRCUMFERENCE = 2 * Math.PI * 18; // r=18, ≈ 113.1
+const TIMER_SECS        = { easy: 80, medium: 55, hard: 30 };
+const RING_CIRC         = 2 * Math.PI * 17; // r=17 → ≈ 106.8
+const $ = id            => document.getElementById(id);
 
-/* ═══════════════════════════════════════════
-   DOM REFERENCES
-═══════════════════════════════════════════ */
-const $ = id => document.getElementById(id);
+/* ═══════════════════════════
+   DARK MODE
+═══════════════════════════ */
+function initTheme() {
+  const saved = localStorage.getItem("oitc-theme") || "light";
+  document.documentElement.setAttribute("data-theme", saved);
+  updateThemeIcon(saved);
 
+  $("theme-toggle").addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const next    = current === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("oitc-theme", next);
+    updateThemeIcon(next);
+  });
+}
+
+function updateThemeIcon(theme) {
+  $("theme-icon").textContent = theme === "dark" ? "☀" : "☾";
+}
+
+/* ═══════════════════════════
+   SCREENS
+═══════════════════════════ */
 const screens = {
   start:    $("screen-start"),
   question: $("screen-question"),
   results:  $("screen-results"),
 };
 
-/* ═══════════════════════════════════════════
-   SCREEN NAVIGATION
-═══════════════════════════════════════════ */
 function showScreen(name) {
-  Object.values(screens).forEach(s => s.classList.remove("active"));
-  screens[name].classList.add("active");
+  const incoming = screens[name];
+
+  // Hide all
+  Object.values(screens).forEach(s => {
+    s.classList.remove("active", "visible");
+    s.style.display = "none";
+  });
+
+  // Show target
+  incoming.style.display = "flex";
+  // Force reflow then animate in
+  requestAnimationFrame(() => {
+    incoming.classList.add("active");
+    requestAnimationFrame(() => {
+      incoming.classList.add("visible");
+    });
+  });
+
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
-/* ═══════════════════════════════════════════
-   UTILITY
-═══════════════════════════════════════════ */
+/* ═══════════════════════════
+   UTILITIES
+═══════════════════════════ */
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -65,13 +88,13 @@ function shuffle(arr) {
   return a;
 }
 
-function capitalize(str) {
+function cap(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-/* ═══════════════════════════════════════════
-   PILL FILTER GROUPS
-═══════════════════════════════════════════ */
+/* ═══════════════════════════
+   FILTERS
+═══════════════════════════ */
 function initPillGroup(groupId, stateKey) {
   const group = $(groupId);
   group.querySelectorAll(".pill").forEach(pill => {
@@ -79,105 +102,111 @@ function initPillGroup(groupId, stateKey) {
       group.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
       pill.classList.add("active");
       state[stateKey] = pill.dataset.value;
-      updateQuestionCountPreview();
+      updateCount();
     });
   });
 }
 
-function updateQuestionCountPreview() {
-  const count = filterQuestions().length;
-  $("question-count-preview").textContent =
-    count === 0
-      ? "No questions match — try different filters"
-      : `${count} question${count !== 1 ? "s" : ""} in this session`;
-}
-
-function filterQuestions() {
+function filteredPool() {
   return QUESTIONS.filter(q => {
-    const topicMatch =
-      state.filterTopic === "all" || q.topic === state.filterTopic;
-    const diffMatch =
-      state.filterDifficulty === "all" || q.difficulty === state.filterDifficulty;
-    return topicMatch && diffMatch;
+    const tMatch = state.filterTopic === "all" || q.topic === state.filterTopic;
+    const dMatch = state.filterDiff  === "all" || q.difficulty === state.filterDiff;
+    return tMatch && dMatch;
   });
 }
 
-/* ═══════════════════════════════════════════
-   START SCREEN INIT
-═══════════════════════════════════════════ */
-function initStartScreen() {
+function updateCount() {
+  const n = filteredPool().length;
+  $("question-count-preview").textContent =
+    n === 0 ? "(no matches)" : `${n} question${n !== 1 ? "s" : ""}`;
+}
+
+/* ═══════════════════════════
+   START SCREEN
+═══════════════════════════ */
+function initStart() {
   initPillGroup("topic-filter",      "filterTopic");
-  initPillGroup("difficulty-filter", "filterDifficulty");
-  updateQuestionCountPreview();
+  initPillGroup("difficulty-filter", "filterDiff");
+  updateCount();
 
-  // Timer toggle
-  const toggle = $("timer-toggle");
-  toggle.addEventListener("change", () => {
-    state.timerEnabled = toggle.checked;
-    $("timer-note").style.opacity = toggle.checked ? "1" : "0.4";
+  $("timer-toggle").addEventListener("change", e => {
+    state.timerEnabled = e.target.checked;
   });
 
-  // Begin button
-  $("btn-start").addEventListener("click", startQuiz);
-}
-
-/* ═══════════════════════════════════════════
-   QUIZ START
-═══════════════════════════════════════════ */
-function startQuiz(pool) {
-  // pool can be passed directly (retry mode) or built from filters
-  if (Array.isArray(pool)) {
-    state.pool = shuffle(pool);
-    state.retryMode = true;
-  } else {
-    const filtered = filterQuestions();
-    if (filtered.length === 0) {
-      alert("No questions match your filters. Please adjust and try again.");
+  $("btn-start").addEventListener("click", () => {
+    const pool = filteredPool();
+    if (pool.length === 0) {
+      alert("No questions match those filters. Try a different combination.");
       return;
     }
-    state.pool = shuffle(filtered);
-    state.retryMode = false;
-  }
+    startQuiz(pool);
+  });
 
-  state.index   = 0;
-  state.correct = 0;
-  state.wrong   = 0;
+  $("btn-quit").addEventListener("click", () => {
+    clearTimer();
+    showScreen("start");
+  });
+
+  $("btn-restart").addEventListener("click", () => {
+    showScreen("start");
+    updateCount();
+  });
+
+  $("btn-retry-wrong").addEventListener("click", () => {
+    const pool = QUESTIONS.filter(q =>
+      state.wrongItems.some(w => w.question === q.question)
+    );
+    if (pool.length > 0) startQuiz(pool);
+  });
+
+  $("btn-next").addEventListener("click", nextQuestion);
+
+  // Choice buttons
+  document.querySelectorAll(".choice").forEach(btn => {
+    btn.addEventListener("click", () => {
+      handleChoice(parseInt(btn.dataset.index, 10));
+    });
+  });
+}
+
+/* ═══════════════════════════
+   QUIZ FLOW
+═══════════════════════════ */
+function startQuiz(pool) {
+  state.pool       = shuffle(pool);
+  state.index      = 0;
+  state.correct    = 0;
+  state.wrong      = 0;
   state.wrongItems = [];
-
   showScreen("question");
   renderQuestion();
 }
 
-/* ═══════════════════════════════════════════
-   RENDER QUESTION
-═══════════════════════════════════════════ */
 function renderQuestion() {
-  const q = state.pool[state.index];
-  state.answered = false;
+  const q          = state.pool[state.index];
+  state.answered   = false;
 
   // Counter
   $("q-counter").textContent = `${state.index + 1} / ${state.pool.length}`;
 
   // Badges
   $("q-topic-badge").textContent = q.topic;
-  const diffBadge = $("q-diff-badge");
-  diffBadge.textContent  = capitalize(q.difficulty);
-  diffBadge.className    = `q-diff-badge ${q.difficulty}`;
+  const db = $("q-diff-badge");
+  db.textContent = cap(q.difficulty);
+  db.className   = `q-badge diff-badge ${q.difficulty}`;
 
-  // Rule + question text
-  $("rule-of-law").textContent = q.rule;
-  $("q-text").textContent      = q.question;
+  // Question text
+  $("q-text").textContent = q.question;
 
   // Choices
-  const choiceBtns = document.querySelectorAll(".choice");
-  choiceBtns.forEach((btn, i) => {
-    btn.textContent  = q.choices[i];
-    btn.className    = "choice";
-    btn.disabled     = false;
+  document.querySelectorAll(".choice").forEach((btn, i) => {
+    btn.textContent = q.choices[i];
+    btn.className   = "choice";
+    btn.disabled    = false;
   });
 
   // Live score
-  updateLiveScore();
+  refreshScore();
 
   // Hide feedback
   $("feedback-panel").hidden = true;
@@ -185,43 +214,48 @@ function renderQuestion() {
   // Timer
   clearTimer();
   if (state.timerEnabled) {
-    $("timer-wrap").style.display = "block";
+    $("timer-wrap").style.display = "flex";
     startTimer(q.difficulty);
   } else {
     $("timer-wrap").style.display = "none";
   }
 }
 
-/* ═══════════════════════════════════════════
-   TIMER
-═══════════════════════════════════════════ */
-function startTimer(difficulty) {
-  const total   = TIMER_SECONDS[difficulty];
-  state.timeLeft = total;
+function nextQuestion() {
+  state.index++;
+  if (state.index >= state.pool.length) {
+    showResults();
+  } else {
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
 
-  const ring    = $("ring-fg");
-  const numEl   = $("timer-number");
+/* ═══════════════════════════
+   TIMER
+═══════════════════════════ */
+function startTimer(difficulty) {
+  const total       = TIMER_SECS[difficulty];
+  state.timeLeft    = total;
+  const ring        = $("ring-fg");
+  const numEl       = $("timer-number");
 
   ring.classList.remove("urgent");
-  ring.style.strokeDasharray    = `${RING_CIRCUMFERENCE}`;
-  ring.style.strokeDashoffset   = "0";
-  numEl.textContent             = total;
+  ring.style.strokeDasharray  = RING_CIRC;
+  ring.style.strokeDashoffset = 0;
+  numEl.textContent           = total;
 
   state.timerInterval = setInterval(() => {
     state.timeLeft--;
     numEl.textContent = state.timeLeft;
 
-    // Update ring
     const pct    = state.timeLeft / total;
-    const offset = RING_CIRCUMFERENCE * (1 - pct);
-    ring.style.strokeDashoffset = offset;
+    ring.style.strokeDashoffset = RING_CIRC * (1 - pct);
 
-    // Urgent color when under 10 seconds
     if (state.timeLeft <= 10) ring.classList.add("urgent");
-
     if (state.timeLeft <= 0) {
       clearTimer();
-      handleTimeout();
+      onTimeout();
     }
   }, 1000);
 }
@@ -233,146 +267,112 @@ function clearTimer() {
   }
 }
 
-function handleTimeout() {
+function onTimeout() {
   if (state.answered) return;
-  // Treat timeout as wrong answer
   state.answered = true;
   state.wrong++;
 
   const q = state.pool[state.index];
-  disableChoices();
-  revealCorrectChoice(q.answer);
-
-  state.wrongItems.push({
-    question:    q.question,
-    correctText: q.choices[q.answer],
-  });
-
-  showFeedback(false, q, true);
+  lockChoices();
+  markReveal(q.answer);
+  state.wrongItems.push({ question: q.question, correctText: q.choices[q.answer] });
+  refreshScore();
+  showFeedback("timeout", q);
 }
 
-/* ═══════════════════════════════════════════
-   CHOICE SELECTION
-═══════════════════════════════════════════ */
-function handleChoiceClick(index) {
+/* ═══════════════════════════
+   ANSWER HANDLING
+═══════════════════════════ */
+function handleChoice(idx) {
   if (state.answered) return;
-  state.answered = true;
+  state.answered   = true;
   clearTimer();
 
   const q       = state.pool[state.index];
-  const correct = index === q.answer;
-  const btns    = document.querySelectorAll(".choice");
+  const isRight = idx === q.answer;
 
-  disableChoices();
+  lockChoices();
 
-  if (correct) {
-    btns[index].classList.add("selected-correct");
+  if (isRight) {
+    document.querySelectorAll(".choice")[idx].classList.add("selected-correct");
     state.correct++;
   } else {
-    btns[index].classList.add("selected-wrong");
-    revealCorrectChoice(q.answer);
+    document.querySelectorAll(".choice")[idx].classList.add("selected-wrong");
+    markReveal(q.answer);
     state.wrong++;
-    state.wrongItems.push({
-      question:    q.question,
-      correctText: q.choices[q.answer],
-    });
+    state.wrongItems.push({ question: q.question, correctText: q.choices[q.answer] });
   }
 
-  updateLiveScore();
-  showFeedback(correct, q, false);
+  refreshScore();
+  showFeedback(isRight ? "correct" : "wrong", q);
 }
 
-function disableChoices() {
-  document.querySelectorAll(".choice").forEach(btn => (btn.disabled = true));
+function lockChoices() {
+  document.querySelectorAll(".choice").forEach(b => (b.disabled = true));
 }
 
-function revealCorrectChoice(answerIndex) {
-  document.querySelectorAll(".choice")[answerIndex].classList.add("reveal-correct");
+function markReveal(idx) {
+  document.querySelectorAll(".choice")[idx].classList.add("reveal-correct");
 }
 
-/* ═══════════════════════════════════════════
-   FEEDBACK PANEL
-═══════════════════════════════════════════ */
-function showFeedback(isCorrect, q, isTimeout) {
-  const panel   = $("feedback-panel");
+function refreshScore() {
+  $("live-correct").textContent = state.correct;
+  $("live-wrong").textContent   = state.wrong;
+}
+
+/* ═══════════════════════════
+   FEEDBACK
+═══════════════════════════ */
+function showFeedback(type, q) {
   const verdict = $("feedback-verdict");
 
-  if (isTimeout) {
-    verdict.textContent  = "⏱ Time's up!";
-    verdict.className    = "feedback-verdict wrong";
-  } else if (isCorrect) {
-    verdict.textContent  = "✓ Correct!";
-    verdict.className    = "feedback-verdict correct";
+  if (type === "correct") {
+    verdict.textContent = "Correct.";
+    verdict.className   = "feedback-verdict correct";
+  } else if (type === "wrong") {
+    verdict.textContent = "Not quite.";
+    verdict.className   = "feedback-verdict wrong";
   } else {
-    verdict.textContent  = "✗ Not quite.";
-    verdict.className    = "feedback-verdict wrong";
+    verdict.textContent = "Time's up.";
+    verdict.className   = "feedback-verdict timeout";
   }
 
   $("feedback-explanation").textContent = q.explanation;
   $("fun-fact-text").textContent        = q.funFact;
 
+  const panel = $("feedback-panel");
   panel.hidden = false;
   panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-/* ═══════════════════════════════════════════
-   LIVE SCORE
-═══════════════════════════════════════════ */
-function updateLiveScore() {
-  $("live-correct").textContent = state.correct;
-  $("live-wrong").textContent   = state.wrong;
-}
-
-/* ═══════════════════════════════════════════
-   NEXT QUESTION / END
-═══════════════════════════════════════════ */
-function nextQuestion() {
-  state.index++;
-  if (state.index >= state.pool.length) {
-    showResults();
-  } else {
-    renderQuestion();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-}
-
-/* ═══════════════════════════════════════════
-   RESULTS SCREEN
-═══════════════════════════════════════════ */
+/* ═══════════════════════════
+   RESULTS
+═══════════════════════════ */
 function showResults() {
   clearTimer();
   showScreen("results");
 
-  const total   = state.pool.length;
-  const correct = state.correct;
-  const pct     = total > 0 ? Math.round((correct / total) * 100) : 0;
+  const total = state.pool.length;
+  const pct   = total > 0 ? Math.round((state.correct / total) * 100) : 0;
 
-  $("results-score").textContent = `${correct} / ${total} correct (${pct}%)`;
+  $("results-score").textContent = `${state.correct} / ${total}`;
   $("results-grade").textContent = gradeMessage(pct);
 
-  // Breakdown by topic & difficulty
   buildBreakdown();
 
-  // Wrong answers review
-  const wrongReview = $("wrong-review");
-  const retryBtn    = $("btn-retry-wrong");
+  const hasWrong = state.wrongItems.length > 0;
+  $("wrong-review").hidden      = !hasWrong;
+  $("btn-retry-wrong").hidden   = !hasWrong;
 
-  if (state.wrongItems.length > 0) {
-    wrongReview.hidden = false;
-    retryBtn.hidden    = false;
-    buildWrongList();
-  } else {
-    wrongReview.hidden = true;
-    retryBtn.hidden    = true;
-  }
+  if (hasWrong) buildMissedList();
 }
 
 function gradeMessage(pct) {
-  if (pct === 100) return "Perfect score. The bar is yours.";
-  if (pct >= 90)   return "Exceptional — bar examiners would be impressed.";
-  if (pct >= 75)   return "Strong performance. A passing bar score.";
-  if (pct >= 60)   return "Solid foundation. Keep drilling the weak spots.";
-  if (pct >= 40)   return "Developing — revisit the rules and try again.";
+  if (pct === 100) return "Perfect. The bar is yours.";
+  if (pct >= 90)   return "Outstanding — bar examiners would be impressed.";
+  if (pct >= 75)   return "Solid — that's a passing bar score.";
+  if (pct >= 60)   return "Good foundation. Keep drilling the weak spots.";
+  if (pct >= 40)   return "Developing. Revisit the rules and go again.";
   return "Back to the books — you've got this.";
 }
 
@@ -380,81 +380,50 @@ function buildBreakdown() {
   const container = $("results-breakdown");
   container.innerHTML = "";
 
-  // Overall accuracy card
-  appendCard(container, "Overall", `${state.correct}/${state.pool.length}`);
+  const total = state.pool.length;
+  const pct   = total > 0 ? Math.round((state.correct / total) * 100) : 0;
 
-  // Per topic
+  addCard(container, "Score", `${pct}%`);
+  addCard(container, "Correct", state.correct);
+  addCard(container, "Missed", state.wrong);
+
   const topics = [...new Set(state.pool.map(q => q.topic))];
   topics.forEach(topic => {
     const qs      = state.pool.filter(q => q.topic === topic);
-    const correct = qs.filter((q, i) => {
-      // We need to match by pool index — track this via state
-      return !state.wrongItems.some(w => w.question === q.question);
-    }).length;
-    appendCard(container, topic, `${correct}/${qs.length}`, topic);
+    const correct = qs.filter(q => !state.wrongItems.some(w => w.question === q.question)).length;
+    addCard(container, topic, `${correct}/${qs.length}`);
   });
 }
 
-function appendCard(container, label, value, sub) {
+function addCard(container, label, value) {
   const card = document.createElement("div");
-  card.className = "breakdown-card";
+  card.className = "r-card";
   card.innerHTML = `
-    <span class="bc-label">${label}</span>
-    <span class="bc-value">${value}</span>
-    ${sub ? `<span class="bc-sub">${sub}</span>` : ""}
+    <span class="r-card-label">${label}</span>
+    <span class="r-card-val">${value}</span>
   `;
   container.appendChild(card);
 }
 
-function buildWrongList() {
+function buildMissedList() {
   const list = $("wrong-list");
   list.innerHTML = "";
   state.wrongItems.forEach(item => {
     const div = document.createElement("div");
-    div.className = "wrong-item";
+    div.className = "missed-item";
     div.innerHTML = `
-      <p class="wi-q">${item.question}</p>
-      <p class="wi-correct">✓ Correct answer: ${item.correctText}</p>
+      <p class="missed-q">${item.question}</p>
+      <p class="missed-ans">✓ ${item.correctText}</p>
     `;
     list.appendChild(div);
   });
 }
 
-/* ═══════════════════════════════════════════
-   EVENT LISTENERS
-═══════════════════════════════════════════ */
-function bindEvents() {
-  // Choice buttons
-  document.querySelectorAll(".choice").forEach(btn => {
-    btn.addEventListener("click", () => {
-      handleChoiceClick(parseInt(btn.dataset.index, 10));
-    });
-  });
-
-  // Next question
-  $("btn-next").addEventListener("click", nextQuestion);
-
-  // Results actions
-  $("btn-restart").addEventListener("click", () => {
-    showScreen("start");
-    updateQuestionCountPreview();
-  });
-
-  $("btn-retry-wrong").addEventListener("click", () => {
-    if (state.wrongItems.length === 0) return;
-    // Build pool from wrong question objects
-    const wrongPool = QUESTIONS.filter(q =>
-      state.wrongItems.some(w => w.question === q.question)
-    );
-    startQuiz(wrongPool);
-  });
-}
-
-/* ═══════════════════════════════════════════
+/* ═══════════════════════════
    BOOT
-═══════════════════════════════════════════ */
+═══════════════════════════ */
 document.addEventListener("DOMContentLoaded", () => {
-  initStartScreen();
-  bindEvents();
+  initTheme();
+  initStart();
   showScreen("start");
 });
