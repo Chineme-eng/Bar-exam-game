@@ -1,98 +1,101 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bar Exam Quiz</title>
+  <title>Order in the Court</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Cormorant+Garamond:ital,wght@0,700;0,800;1,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- ═══════════════════════════════════════════
-       SCREEN 1 — START / LOBBY
-  ═══════════════════════════════════════════ -->
+  <!-- Dark mode toggle — always on top -->
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+    <span id="theme-icon">☾</span>
+  </button>
+
+  <!-- ══════════════════════════════════
+       SCREEN 1 — START
+  ══════════════════════════════════ -->
   <div id="screen-start" class="screen active">
     <div class="start-inner">
-      <div class="logo-mark">⚖</div>
-      <h1 class="title">Bar Exam<br><em>Quiz</em></h1>
-      <p class="subtitle">Test your legal instincts across Torts, Contracts,<br>Criminal Law, Con Law, Evidence, and Property.</p>
 
-      <div class="config-panel">
+      <div class="start-hero">
+        <div class="hero-gavel">⚖</div>
+        <h1 class="hero-title">Order in<br><em>the Court</em></h1>
+        <p class="hero-sub">Pick your filters. Trust your instincts.</p>
+      </div>
 
-        <div class="config-row">
-          <label class="config-label">Topic</label>
-          <div class="pill-group" id="topic-filter">
-            <button class="pill active" data-value="all">All Topics</button>
+      <div class="start-form">
+
+        <div class="filter-group">
+          <label class="filter-label">Topic</label>
+          <div class="pill-row" id="topic-filter">
+            <button class="pill active" data-value="all">All</button>
             <button class="pill" data-value="Torts">Torts</button>
             <button class="pill" data-value="Contracts">Contracts</button>
-            <button class="pill" data-value="Criminal Law">Criminal Law</button>
+            <button class="pill" data-value="Criminal Law">Criminal</button>
             <button class="pill" data-value="Constitutional Law">Con Law</button>
             <button class="pill" data-value="Evidence">Evidence</button>
             <button class="pill" data-value="Property">Property</button>
           </div>
         </div>
 
-        <div class="config-row">
-          <label class="config-label">Difficulty</label>
-          <div class="pill-group" id="difficulty-filter">
-            <button class="pill active" data-value="all">All Levels</button>
+        <div class="filter-group">
+          <label class="filter-label">Difficulty</label>
+          <div class="pill-row" id="difficulty-filter">
+            <button class="pill active" data-value="all">All</button>
             <button class="pill" data-value="easy">Easy</button>
             <button class="pill" data-value="medium">Medium</button>
             <button class="pill" data-value="hard">Hard</button>
           </div>
         </div>
 
-        <div class="config-row timer-row">
-          <label class="config-label">Timer</label>
+        <div class="filter-group filter-inline">
+          <label class="filter-label">Timer</label>
           <label class="toggle-switch">
             <input type="checkbox" id="timer-toggle" checked />
-            <span class="toggle-track">
-              <span class="toggle-thumb"></span>
-            </span>
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </label>
-          <span class="timer-note" id="timer-note">80s easy · 55s medium · 30s hard</span>
         </div>
 
-      </div>
+        <button class="btn-begin" id="btn-start">
+          Begin &nbsp;<span class="begin-count" id="question-count-preview"></span>
+        </button>
 
-      <button class="btn-primary" id="btn-start">Begin Quiz</button>
-      <p class="start-meta" id="question-count-preview">— questions loaded —</p>
+      </div>
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════
+  <!-- ══════════════════════════════════
        SCREEN 2 — QUESTION
-  ═══════════════════════════════════════════ -->
+  ══════════════════════════════════ -->
   <div id="screen-question" class="screen">
-    <div class="question-wrap">
+    <div class="q-wrap">
 
-      <!-- Top bar -->
-      <div class="q-topbar">
-        <div class="q-meta">
+      <header class="q-header">
+        <div class="q-header-left">
           <span class="q-counter" id="q-counter">1 / 40</span>
-          <span class="q-topic-badge" id="q-topic-badge">Torts</span>
-          <span class="q-diff-badge" id="q-diff-badge">Easy</span>
+          <span class="q-badge topic-badge" id="q-topic-badge">Torts</span>
+          <span class="q-badge diff-badge" id="q-diff-badge">Easy</span>
         </div>
-        <div class="timer-ring-wrap" id="timer-wrap">
-          <svg class="timer-ring" viewBox="0 0 44 44">
-            <circle class="ring-bg" cx="22" cy="22" r="18"/>
-            <circle class="ring-fg" id="ring-fg" cx="22" cy="22" r="18"/>
-          </svg>
-          <span class="timer-number" id="timer-number">80</span>
+        <div class="q-header-right">
+          <div class="score-tally">
+            <span class="tally-c" id="live-correct">0</span><span class="tally-div">·</span><span class="tally-w" id="live-wrong">0</span>
+          </div>
+          <div class="timer-wrap" id="timer-wrap">
+            <svg class="timer-svg" viewBox="0 0 44 44">
+              <circle class="ring-bg" cx="22" cy="22" r="17"/>
+              <circle class="ring-fg" id="ring-fg" cx="22" cy="22" r="17"/>
+            </svg>
+            <span class="timer-num" id="timer-number">80</span>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <!-- Score tally (live) -->
-      <div class="live-score">
-        <span id="live-correct">0</span> correct &nbsp;·&nbsp; <span id="live-wrong">0</span> wrong
-      </div>
-
-      <!-- Question card -->
-      <div class="q-card">
-        <p class="rule-of-law" id="rule-of-law"></p>
+      <main class="q-main">
         <p class="q-text" id="q-text"></p>
 
         <div class="choices" id="choices">
@@ -101,47 +104,50 @@
           <button class="choice" data-index="2"></button>
           <button class="choice" data-index="3"></button>
         </div>
-      </div>
+      </main>
 
-      <!-- Feedback panel (hidden until answered) -->
       <div class="feedback-panel" id="feedback-panel" hidden>
-        <div class="feedback-header">
-          <span class="feedback-verdict" id="feedback-verdict"></span>
-        </div>
-        <p class="feedback-explanation" id="feedback-explanation"></p>
-        <div class="fun-fact-box" id="fun-fact-box">
-          <span class="fun-fact-label">⚡ Did you know?</span>
-          <p class="fun-fact-text" id="fun-fact-text"></p>
+        <p class="feedback-verdict" id="feedback-verdict"></p>
+        <p class="feedback-body" id="feedback-explanation"></p>
+        <div class="fun-fact">
+          <span class="fun-fact-spark">⚡</span>
+          <p id="fun-fact-text"></p>
         </div>
         <button class="btn-next" id="btn-next">Next Question →</button>
+      </div>
+
+      <div class="q-footer">
+        <button class="btn-quit" id="btn-quit">Quit</button>
       </div>
 
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════
+  <!-- ══════════════════════════════════
        SCREEN 3 — RESULTS
-  ═══════════════════════════════════════════ -->
+  ══════════════════════════════════ -->
   <div id="screen-results" class="screen">
-    <div class="results-inner">
-      <div class="results-emblem" id="results-emblem">⚖</div>
-      <h2 class="results-title" id="results-title">Quiz Complete</h2>
-      <p class="results-score" id="results-score"></p>
-      <p class="results-grade" id="results-grade"></p>
+    <div class="results-wrap">
 
-      <div class="results-breakdown" id="results-breakdown">
-        <!-- filled by JS -->
+      <div class="results-top">
+        <div class="results-gavel">⚖</div>
+        <h2 class="results-heading">Order in the Court</h2>
+        <p class="results-grade" id="results-grade"></p>
+        <p class="results-score" id="results-score"></p>
       </div>
 
-      <div class="wrong-review" id="wrong-review" hidden>
-        <h3 class="review-heading">Questions You Missed</h3>
+      <div class="results-cards" id="results-breakdown"></div>
+
+      <div class="missed-section" id="wrong-review" hidden>
+        <h3 class="missed-title">Questions You Missed</h3>
         <div id="wrong-list"></div>
       </div>
 
-      <div class="results-actions">
-        <button class="btn-primary" id="btn-retry-wrong" hidden>Retry Wrong Answers</button>
-        <button class="btn-secondary" id="btn-restart">Start Over</button>
+      <div class="results-footer">
+        <button class="btn-retry-missed" id="btn-retry-wrong" hidden>Retry Missed</button>
+        <button class="btn-home" id="btn-restart">← Start Over</button>
       </div>
+
     </div>
   </div>
 
